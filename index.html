@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>線上密室逃脫遊戲</title>
+  <style>
+    /* 全局重置與背景 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #121212;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+
+    /* 1. 遊戲容器（16:9 比例，960x540） */
+    #game-container {
+      position: relative;
+      width: 960px;
+      height: 540px;
+      background-color: #000;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      border-radius: 8px;
+    }
+
+    /* 2. 四向場景背景 View */
+    .scene-view {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+      pointer-events: none;
+    }
+
+    .scene-view.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 3. 轉向控制按鈕 */
+    .nav-btn {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.4);
+      color: #ffffff;
+      border: 2px solid rgba(255, 255, 255, 0.6);
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 50%;
+      transition: all 0.2s ease;
+      z-index: 100;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: #fff;
+      transform: scale(1.1);
+    }
+
+    #btn-left {
+      top: 50%;
+      left: 20px;
+      width: 50px;
+      height: 50px;
+      transform: translateY(-50%);
+    }
+    #btn-left:hover {
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    #btn-right {
+      top: 50%;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      transform: translateY(-50%);
+    }
+    #btn-right:hover {
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    #btn-back {
+      bottom: 20px;
+      left: 50%;
+      width: 60px;
+      height: 40px;
+      border-radius: 20px;
+      transform: translateX(-50%);
+      font-size: 16px;
+    }
+    #btn-back:hover {
+      transform: translateX(-50%) scale(1.1);
+    }
+
+    /* 方向提示標籤 */
+    #direction-indicator {
+      position: absolute;
+      top: 15px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      letter-spacing: 1px;
+      z-index: 100;
+    }
+
+    /* 4. 熱點 Hotspots (點擊區域) */
+    .hotspot {
+      position: absolute;
+      cursor: pointer;
+      background: rgba(255, 255, 0, 0); /* 預設透明 */
+      transition: background 0.2s ease;
+      z-index: 10;
+    }
+
+    .hotspot:hover {
+      background: rgba(255, 255, 255, 0.15);
+      outline: 2px dashed rgba(255, 255, 255, 0.5);
+    }
+
+    /* 北方熱點 */
+    #hotspot-door { top: 100px; left: 610px; width: 250px; height: 400px; }
+    #hotspot-door-lock { top: 280px; left: 880px; width: 60px; height: 60px; }
+    #hotspot-window { top: 100px; left: 130px; width: 320px; height: 290px; }
+
+    /* 東方熱點 */
+    #hotspot-backpack { top: 220px; left: 160px; width: 200px; height: 250px; }
+    #hotspot-orange-box { top: 260px; left: 550px; width: 260px; height: 200px; }
+
+    /* 西方熱點 */
+    #hotspot-doodle { top: 370px; left: 130px; width: 220px; height: 120px; }
+    #hotspot-safe { top: 200px; left: 580px; width: 220px; height: 220px; }
+
+    /* 南方熱點 */
+    #hotspot-calendar { top: 60px; left: 715px; width: 150px; height: 210px; }
+    #hotspot-book { top: 300px; left: 415px; width: 150px; height: 120px; }
+    #hotspot-frame { top: 70px; left: 120px; width: 220px; height: 280px; }
+
+    /* 5. 特寫畫面 (全版視角型，如窗戶/門/畫框) */
+    .close-up-view {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      z-index: 200;
+      display: none;
+    }
+
+    .close-up-view.active {
+      display: block;
+    }
+
+    .btn-return {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      border: 1px solid #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 210;
+    }
+
+    .btn-return:hover {
+      background: #fff;
+      color: #000;
+    }
+
+    /* 6. 特寫彈窗 (Overlay Modal 型) */
+    .popup-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 250;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    .popup-modal.active {
+      display: flex;
+    }
+
+    .popup-content {
+      position: relative;
+      max-width: 80%;
+      max-height: 80%;
+      border: 4px solid #fff;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+    }
+
+    .popup-content img {
+      display: block;
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 4px;
+    }
+
+    /* 7. 自訂畫框鍵盤熱點 */
+    #frame-panel-wrapper {
+      position: relative;
+      width: 800px;
+      height: 480px;
+      background: url('puzzle_frame_locked.png') no-repeat center/contain;
+      margin: 0 auto;
+    }
+
+    .frame-key-btn {
+      position: absolute;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0);
+      border-radius: 4px;
+    }
+    .frame-key-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* 8. 通用可拖曳密碼鎖面板 */
+    .draggable-lock-panel {
+      position: absolute;
+      top: 120px;
+      left: 330px;
+      width: 300px;
+      background: rgba(30, 30, 30, 0.92);
+      border: 3px solid #f39c12;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+      z-index: 300;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .lock-panel-header {
+      background: #f39c12;
+      color: #121212;
+      padding: 10px;
+      font-weight: bold;
+      text-align: center;
+      cursor: move;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .lock-panel-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .lock-display {
+      width: 100%;
+      height: 48px;
+      background: #000;
+      color: #00ff66;
+      font-size: 28px;
+      font-family: 'Courier New', Courier, monospace;
+      text-align: center;
+      line-height: 48px;
+      letter-spacing: 6px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      border: 1px solid #444;
+    }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .keypad-btn {
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 12px 0;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .keypad-btn:active {
+      background: #f39c12;
+      color: #000;
+    }
+
+    .keypad-btn.clr { background: #e74c3c; }
+    .keypad-btn.ok { background: #2ecc71; }
+
+    /* 9. 通關與提示 Modal */
+    #complete-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 500;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: #fff;
+    }
+
+    #complete-modal h1 {
+      font-size: 48px;
+      color: #f1c40f;
+      text-shadow: 0 0 20px rgba(241, 196, 15, 0.8);
+      margin-bottom: 10px;
+    }
+
+    #complete-modal p {
+      font-size: 20px;
+      margin-bottom: 30px;
+    }
+
+    .btn-restart {
+      padding: 12px 28px;
+      font-size: 18px;
+      background: #f1c40f;
+      color: #000;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-restart:hover {
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. 遊戲容器 -->
+  <div id="game-container">
+    
+    <!-- 方向提示 -->
+    <div id="direction-indicator">北方</div>
+
+    <!-- 2. 四向場景 -->
+    <!-- 北方 -->
+    <div id="view-north" class="scene-view active" style="background-image: url('bg_north.png');">
+      <div id="hotspot-door" class="hotspot" onclick="openDoorLockView()"></div>
+      <div id="hotspot-door-lock" class="hotspot" onclick="openDoorLockView()"></div>
+      <div id="hotspot-window" class="hotspot" onclick="openWindowView()"></div>
+    </div>
+
+    <!-- 東方 -->
+    <div id="view-east" class="scene-view" style="background-image: url('bg_east.png');">
+      <div id="hotspot-backpack" class="hotspot" onclick="openBackpackView()"></div>
+      <div id="hotspot-orange-box" class="hotspot" onclick="openOrangeBoxView()"></div>
+    </div>
+
+    <!-- 南方 -->
+    <div id="view-south" class="scene-view" style="background-image: url('bg_south.png');">
+      <div id="hotspot-calendar" class="hotspot" onclick="openPopup('popup-calendar')"></div>
+      <div id="hotspot-book" class="hotspot" onclick="openPopup('popup-book')"></div>
+      <div id="hotspot-frame" class="hotspot" onclick="openFrameView()"></div>
+    </div>
+
+    <!-- 西方 -->
+    <div id="view-west" class="scene-view" style="background-image: url('bg_west.png');">
+      <div id="hotspot-doodle" class="hotspot" onclick="openPopup('popup-doodle')"></div>
+      <div id="hotspot-safe" class="hotspot" onclick="openSafeView()"></div>
+    </div>
+
+    <!-- 3. 轉向按鈕 -->
+    <button id="btn-left" class="nav-btn" onclick="rotateLeft()">&#10094;</button>
+    <button id="btn-right" class="nav-btn" onclick="rotateRight()">&#10095;</button>
+    <button id="btn-back" class="nav-btn" onclick="rotateBack()">&#x21A9;</button>
+
+    <!-- 5. 特寫 View (大門 & 窗戶) -->
+    <div id="view-door-close-up" class="close-up-view" style="background-image: url('puzzle_door_locked.png');">
+      <button class="btn-return" onclick="closeDoorLockView()">&#x21A9; 返回房間</button>
+    </div>
+
+    <div id="view-window-close-up" class="close-up-view" style="background-image: url('puzzle_window.png');">
+      <button class="btn-return" onclick="closeWindowView()">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 6. 特寫彈窗 Modal (塗鴉、日曆、書本) -->
+    <div id="popup-doodle" class="popup-modal">
+      <div class="popup-content"><img src="puzzle_doodle.png" alt="牆上塗鴉"></div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-doodle')">&#x21A9; 返回房間</button>
+    </div>
+
+    <div id="popup-calendar" class="popup-modal">
+      <div class="popup-content"><img src="puzzle_calendar.png" alt="日曆"></div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-calendar')">&#x21A9; 返回房間</button>
+    </div>
+
+    <div id="popup-book" class="popup-modal">
+      <div class="popup-content"><img src="puzzle_book.png" alt="書本"></div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-book')">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 7. 南方畫框面板 (自訂按鍵對應圖片) -->
+    <div id="popup-frame" class="popup-modal">
+      <div style="position: relative;">
+        <img id="img-frame" src="puzzle_frame_locked.png" style="max-height: 75vh; border: 3px solid #fff; border-radius: 8px;">
+        
+        <!-- 畫框上的數字按鈕熱點 (對應 puzzle_frame_locked.png 上的鍵盤位置) -->
+        <div id="frame-keypad-overlay" style="position: absolute; top: 220px; right: 80px; width: 140px; height: 180px;">
+          <div class="keypad" style="grid-template-columns: repeat(3, 1fr); gap: 4px;">
+            <button class="keypad-btn" onclick="pressFrameKey('7')">7</button>
+            <button class="keypad-btn" onclick="pressFrameKey('8')">8</button>
+            <button class="keypad-btn" onclick="pressFrameKey('9')">9</button>
+            <button class="keypad-btn" onclick="pressFrameKey('4')">4</button>
+            <button class="keypad-btn" onclick="pressFrameKey('5')">5</button>
+            <button class="keypad-btn" onclick="pressFrameKey('6')">6</button>
+            <button class="keypad-btn" onclick="pressFrameKey('1')">1</button>
+            <button class="keypad-btn" onclick="pressFrameKey('2')">2</button>
+            <button class="keypad-btn" onclick="pressFrameKey('3')">3</button>
+            <button class="keypad-btn" onclick="pressFrameKey('0')">0</button>
+            <button class="keypad-btn clr" style="grid-column: span 2;" onclick="pressFrameKey('CLR')">←</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-frame')">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 8. 西方保險箱 Modal -->
+    <div id="popup-safe" class="popup-modal">
+      <div class="popup-content">
+        <img id="img-safe" src="puzzle_safe_locked.png" alt="保險箱">
+      </div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-safe')">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 9. 東方黑色書包 Modal -->
+    <div id="popup-backpack" class="popup-modal">
+      <div class="popup-content">
+        <img id="img-backpack" src="puzzle_backpack_locked.png" alt="黑色書包">
+      </div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-backpack')">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 10. 東方橘色箱子 Modal -->
+    <div id="popup-orange-box" class="popup-modal">
+      <div class="popup-content">
+        <img id="img-orange-box" src="puzzle_orange_box_locked.png" alt="橘色箱子">
+      </div>
+      <button class="btn-return" style="position: static; margin-top: 15px;" onclick="closePopup('popup-orange-box')">&#x21A9; 返回房間</button>
+    </div>
+
+    <!-- 11. 可拖曳密碼鎖面板 (通用組件) -->
+    <div id="drag-lock-panel" class="draggable-lock-panel">
+      <div id="drag-lock-panel-header" class="lock-panel-header">
+        <span id="lock-title">密碼鎖</span>
+        <span style="cursor:pointer;" onclick="closeDragLockPanel()">&times;</span>
+      </div>
+      <div class="lock-panel-body">
+        <div id="drag-lock-display" class="lock-display">____</div>
+        <div class="keypad">
+          <button class="keypad-btn" onclick="pressDragKey('1')">1</button>
+          <button class="keypad-btn" onclick="pressDragKey('2')">2</button>
+          <button class="keypad-btn" onclick="pressDragKey('3')">3</button>
+          <button class="keypad-btn" onclick="pressDragKey('4')">4</button>
+          <button class="keypad-btn" onclick="pressDragKey('5')">5</button>
+          <button class="keypad-btn" onclick="pressDragKey('6')">6</button>
+          <button class="keypad-btn" onclick="pressDragKey('7')">7</button>
+          <button class="keypad-btn" onclick="pressDragKey('8')">8</button>
+          <button class="keypad-btn" onclick="pressDragKey('9')">9</button>
+          <button class="keypad-btn clr" onclick="pressDragKey('CLR')">CLR</button>
+          <button class="keypad-btn" onclick="pressDragKey('0')">0</button>
+          <button class="keypad-btn ok" onclick="pressDragKey('OK')">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12. 通關彈窗 ROOM COMPLETE -->
+    <div id="complete-modal">
+      <h1>ROOM COMPLETE</h1>
+      <p>大門已開啟，成功逃脫！</p>
+      <button class="btn-restart" onclick="location.reload()">再玩一次</button>
+    </div>
+
+  </div>
+
+  <script>
+    // 遊戲狀態與變數
+    const directions = [
+      { id: 'view-north', name: '北方' },
+      { id: 'view-east',  name: '東方' },
+      { id: 'view-south', name: '南方' },
+      { id: 'view-west',  name: '西方' }
+    ];
+    let currentDirIndex = 0;
+
+    // 關卡解鎖狀態
+    let isDoorUnlocked = false;
+    let isFrameUnlocked = false;
+    let isSafeUnlocked = false;
+    let isBackpackUnlocked = false;
+    let isOrangeBoxUnlocked = false;
+
+    // 當前拖曳鎖綁定對象 ('door', 'safe', 'backpack', 'orangeBox')
+    let currentLockTarget = null;
+    let currentInputPassword = "";
+
+    // 正確密碼設定
+    const PASSWORDS = {
+      door: "4765",
+      frame: "705",
+      safe: "3742",
+      backpack: "319",
+      orangeBox: "6928"
+    };
+
+    // 語音朗讀與音效 (Web Speech API & Web Audio API)
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-TW';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function playSound(type) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'success') {
+          osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+          osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+          osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.5);
+        } else if (type === 'error') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150, ctx.currentTime);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.3);
+        } else if (type === 'click') {
+          osc.frequency.setValueAtTime(800, ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.05);
+        }
+      } catch (e) {
+        console.log("Audio API Error or disabled");
+      }
+    }
+
+    // 場景切換邏輯
+    function updateScene() {
+      directions.forEach((dir, index) => {
+        const viewEl = document.getElementById(dir.id);
+        if (index === currentDirIndex) {
+          viewEl.classList.add('active');
+        } else {
+          viewEl.classList.remove('active');
+        }
+      });
+      document.getElementById('direction-indicator').innerText = directions[currentDirIndex].name;
+    }
+
+    function rotateLeft() {
+      currentDirIndex = (currentDirIndex - 1 + directions.length) % directions.length;
+      updateScene();
+    }
+    function rotateRight() {
+      currentDirIndex = (currentDirIndex + 1) % directions.length;
+      updateScene();
+    }
+    function rotateBack() {
+      currentDirIndex = (currentDirIndex + 2) % directions.length;
+      updateScene();
+    }
+
+    /* 北方 - 門與密碼鎖 */
+    function openDoorLockView() {
+      if (isDoorUnlocked) {
+        document.getElementById('complete-modal').style.display = 'flex';
+        return;
+      }
+      document.getElementById('view-door-close-up').classList.add('active');
+      openDragLockPanel('door', '大門密碼鎖', 4);
+    }
+
+    function closeDoorLockView() {
+      document.getElementById('view-door-close-up').classList.remove('active');
+      closeDragLockPanel();
+    }
+
+    function openWindowView() {
+      document.getElementById('view-window-close-up').classList.add('active');
+    }
+
+    function closeWindowView() {
+      document.getElementById('view-window-close-up').classList.remove('active');
+    }
+
+    /* 南方 - 畫框 (自訂圖片點擊密碼鎖) */
+    let frameInput = "";
+    function openFrameView() {
+      document.getElementById('popup-frame').classList.add('active');
+      if (isFrameUnlocked) {
+        document.getElementById('img-frame').src = 'item_pencil_frame.png';
+        document.getElementById('frame-keypad-overlay').style.display = 'none';
+      } else {
+        document.getElementById('img-frame').src = 'puzzle_frame_locked.png';
+        document.getElementById('frame-keypad-overlay').style.display = 'block';
+        frameInput = "";
+      }
+    }
+
+    function pressFrameKey(key) {
+      playSound('click');
+      if (key === 'CLR') {
+        frameInput = "";
+      } else {
+        if (frameInput.length < 3) frameInput += key;
+      }
+
+      if (frameInput.length === 3) {
+        if (frameInput === PASSWORDS.frame) {
+          playSound('success');
+          isFrameUnlocked = true;
+          document.getElementById('img-frame').src = 'item_pencil_frame.png';
+          document.getElementById('frame-keypad-overlay').style.display = 'none';
+          speakText("獲得鉛筆！");
+        } else {
+          playSound('error');
+          frameInput = "";
+        }
+      }
+    }
+
+    /* 西方 - 保險箱 */
+    function openSafeView() {
+      document.getElementById('popup-safe').classList.add('active');
+      if (isSafeUnlocked) {
+        document.getElementById('img-safe').src = 'item_safe_opened.png';
+      } else {
+        document.getElementById('img-safe').src = 'puzzle_safe_locked.png';
+        openDragLockPanel('safe', '保險箱密碼鎖', 4);
+      }
+    }
+
+    /* 東方 - 黑色書包 */
+    function openBackpackView() {
+      document.getElementById('popup-backpack').classList.add('active');
+      if (isBackpackUnlocked) {
+        document.getElementById('img-backpack').src = 'item_backpack_opened.png';
+      } else {
+        document.getElementById('img-backpack').src = 'puzzle_backpack_locked.png';
+        openDragLockPanel('backpack', '書包密碼鎖', 3);
+      }
+    }
+
+    /* 東方 - 橘色箱子 */
+    function openOrangeBoxView() {
+      document.getElementById('popup-orange-box').classList.add('active');
+      if (isOrangeBoxUnlocked) {
+        document.getElementById('img-orange-box').src = 'item_orange_box_opened.png';
+      } else {
+        document.getElementById('img-orange-box').src = 'puzzle_orange_box_locked.png';
+        openDragLockPanel('orangeBox', '橘色箱子密碼鎖', 4);
+      }
+    }
+
+    /* 通用 Modal 控制 */
+    function openPopup(id) {
+      document.getElementById(id).classList.add('active');
+    }
+
+    function closePopup(id) {
+      document.getElementById(id).classList.remove('active');
+      closeDragLockPanel();
+    }
+
+    /* 通用拖曳密碼鎖邏輯 */
+    let maxPassLength = 4;
+
+    function openDragLockPanel(target, title, passLen) {
+      currentLockTarget = target;
+      maxPassLength = passLen;
+      currentInputPassword = "";
+      document.getElementById('lock-title').innerText = title;
+      document.getElementById('drag-lock-panel').style.display = 'flex';
+      updateDragLockDisplay();
+    }
+
+    function closeDragLockPanel() {
+      document.getElementById('drag-lock-panel').style.display = 'none';
+      currentLockTarget = null;
+    }
+
+    function pressDragKey(key) {
+      playSound('click');
+      if (key === 'CLR') {
+        currentInputPassword = "";
+      } else if (key === 'OK') {
+        checkDragPassword();
+        return;
+      } else {
+        if (currentInputPassword.length < maxPassLength) {
+          currentInputPassword += key;
+        }
+      }
+      updateDragLockDisplay();
+    }
+
+    function updateDragLockDisplay() {
+      const displayEl = document.getElementById('drag-lock-display');
+      displayEl.style.color = '#00ff66';
+      let formatted = currentInputPassword.padEnd(maxPassLength, '_');
+      displayEl.innerText = formatted;
+    }
+
+    function checkDragPassword() {
+      const displayEl = document.getElementById('drag-lock-display');
+      const correctPass = PASSWORDS[currentLockTarget];
+
+      if (currentInputPassword === correctPass) {
+        playSound('success');
+        
+        // 依據目標更新開啟狀態圖檔與語音提示
+        if (currentLockTarget === 'door') {
+          isDoorUnlocked = true;
+          document.getElementById('view-north').style.backgroundImage = "url('bg_north_open.png')";
+          closeDragLockPanel();
+          closeDoorLockView();
+          setTimeout(() => {
+            document.getElementById('complete-modal').style.display = 'flex';
+          }, 300);
+        } else if (currentLockTarget === 'safe') {
+          isSafeUnlocked = true;
+          document.getElementById('img-safe').src = 'item_safe_opened.png';
+          closeDragLockPanel();
+          speakText("獲得鉛筆！");
+        } else if (currentLockTarget === 'backpack') {
+          isBackpackUnlocked = true;
+          document.getElementById('img-backpack').src = 'item_backpack_opened.png';
+          closeDragLockPanel();
+          speakText("獲得鉛筆！");
+        } else if (currentLockTarget === 'orangeBox') {
+          isOrangeBoxUnlocked = true;
+          document.getElementById('img-orange-box').src = 'item_orange_box_opened.png';
+          closeDragLockPanel();
+          speakText("獲得鉛筆！");
+        }
+      } else {
+        playSound('error');
+        displayEl.style.color = '#e74c3c';
+        displayEl.innerText = "ERROR";
+        setTimeout(() => {
+          currentInputPassword = "";
+          updateDragLockDisplay();
+        }, 800);
+      }
+    }
+
+    /* 密碼鎖面板拖曳功能 */
+    dragElement(document.getElementById("drag-lock-panel"));
+
+    function dragElement(elmnt) {
+      var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+      var header = document.getElementById(elmnt.id + "-header");
+      if (header) {
+        header.onmousedown = dragMouseDown;
+      } else {
+        elmnt.onmousedown = dragMouseDown;
+      }
+
+      function dragMouseDown(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+      }
+
+      function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+      }
+
+      function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+      }
+    }
+  </script>
+</body>
+</html>
